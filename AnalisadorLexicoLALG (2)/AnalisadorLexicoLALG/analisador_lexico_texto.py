@@ -45,6 +45,7 @@ class AnalisadorLexicoTexto:
             while i < tamanho:
                 c = linha[i]
                 prox = linha[i + 1] if i + 1 < tamanho else ""
+                coluna_ini = i + 1  # 1-based
 
                 # Comentário por {}
                 if c == '{':
@@ -59,10 +60,9 @@ class AnalisadorLexicoTexto:
                 elif c == '/' and prox == '*':
                     i += 2
                     fechado = False
-                    # Procurar fechamento do comentário pelo resto do código
                     while num_linha <= len(self.codigo):
                         while i < len(linha):
-                            if linha[i] == '*' and i + 1 < len(linha) and linha[i+1] == '/':
+                            if linha[i] == '*' and i + 1 < len(linha) and linha[i + 1] == '/':
                                 i += 2
                                 fechado = True
                                 break
@@ -70,8 +70,8 @@ class AnalisadorLexicoTexto:
                         if fechado:
                             break
                         num_linha += 1
-                        if num_linha-1 < len(self.codigo):
-                            linha = self.codigo[num_linha-1]
+                        if num_linha - 1 < len(self.codigo):
+                            linha = self.codigo[num_linha - 1]
                             i = 0
                         else:
                             break
@@ -79,19 +79,16 @@ class AnalisadorLexicoTexto:
                         self.erros.append(f"Erro Léxico - Comentário não fechado - linha {num_linha}")
                     continue
 
-                # Símbolo duplo
                 elif self.eh_duplo(c + prox):
-                    self.tokens.append((self.token_duplo(c + prox), c + prox, num_linha))
+                    self.tokens.append((self.token_duplo(c + prox), c + prox, num_linha, coluna_ini, coluna_ini + 1))
                     i += 2
                     continue
 
-                # Símbolo simples
                 elif self.eh_simbolo_simples(c):
-                    self.tokens.append((self.token_simples(c), c, num_linha))
+                    self.tokens.append((self.token_simples(c), c, num_linha, coluna_ini, coluna_ini))
                     i += 1
                     continue
 
-                # Número
                 elif self.eh_digito(c):
                     num = c
                     i += 1
@@ -105,27 +102,23 @@ class AnalisadorLexicoTexto:
                             while i < tamanho and self.eh_digito(linha[i]):
                                 num += linha[i]
                                 i += 1
-                            self.tokens.append(("tok301", num, num_linha))  # real
+                            self.tokens.append(("tok301", num, num_linha, coluna_ini, coluna_ini + len(num) - 1))
                         else:
                             self.erros.append(f"Erro Léxico - Número real mal formado - linha {num_linha}")
                     else:
-                        self.tokens.append(("tok300", num, num_linha))  # inteiro
+                        self.tokens.append(("tok300", num, num_linha, coluna_ini, coluna_ini + len(num) - 1))
                     continue
 
-                # Palavra reservada ou identificador
                 elif self.eh_letra(c):
                     ident = c
                     i += 1
                     while i < tamanho and (self.eh_letra(linha[i]) or self.eh_digito(linha[i]) or linha[i] == "_"):
                         ident += linha[i]
                         i += 1
-                    if self.eh_reservada(ident):
-                        self.tokens.append((self.token_reservada(ident), ident, num_linha))
-                    else:
-                        self.tokens.append(("tok500", ident, num_linha))
+                    tipo = self.token_reservada(ident) if self.eh_reservada(ident) else "tok500"
+                    self.tokens.append((tipo, ident, num_linha, coluna_ini, coluna_ini + len(ident) - 1))
                     continue
 
-                # Espaço, tab ou quebra de linha
                 elif c in [' ', '\t', '\n', '\r']:
                     i += 1
                     continue

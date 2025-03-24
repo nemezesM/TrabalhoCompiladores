@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
-from analisador_lexico_texto import AnalisadorLexicoTexto  # certifique-se que esse arquivo está correto
+from analisador_lexico_texto import AnalisadorLexicoTexto
 
 class InterfaceLexico:
     def __init__(self, root):
@@ -11,21 +11,17 @@ class InterfaceLexico:
         self.criar_widgets()
 
     def criar_widgets(self):
-        # Frame com numeração de linha + código
         frame_codigo = tk.Frame(self.root)
         frame_codigo.pack(fill=tk.BOTH, expand=False)
 
-        # Área de linha (numerador)
         self.numeros_linha = tk.Text(frame_codigo, width=4, padx=3, takefocus=0, border=0,
                                      background='#eeeeee', state='disabled', wrap='none')
         self.numeros_linha.pack(side=tk.LEFT, fill=tk.Y)
 
-        # Área de código
         self.texto_codigo = ScrolledText(frame_codigo, height=15, font=("Courier New", 11), wrap=tk.NONE)
         self.texto_codigo.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.texto_codigo.bind("<KeyRelease>", self.atualizar_linhas)
 
-        # Botões
         botoes_frame = tk.Frame(self.root)
         botoes_frame.pack(pady=5)
 
@@ -41,19 +37,18 @@ class InterfaceLexico:
         btn_exportar = tk.Button(botoes_frame, text="📤 Exportar Tabela", command=self.exportar_tabela)
         btn_exportar.grid(row=0, column=3, padx=5)
 
-        # Tabela de tokens (Treeview)
-        self.tree = ttk.Treeview(self.root, columns=("Token", "Lexema", "Linha"), show="headings", height=12)
-        self.tree.heading("Token", text="Token")
-        self.tree.heading("Lexema", text="Lexema")
-        self.tree.heading("Linha", text="Linha")
+        self.tree = ttk.Treeview(self.root, columns=("Token", "Lexema", "Linha", "Coluna Inicial", "Coluna Final"), show="headings", height=12)
+        for col in self.tree["columns"]:
+            self.tree.heading(col, text=col)
 
         self.tree.column("Token", width=100)
-        self.tree.column("Lexema", width=250)
-        self.tree.column("Linha", width=100)
+        self.tree.column("Lexema", width=200)
+        self.tree.column("Linha", width=80)
+        self.tree.column("Coluna Inicial", width=100)
+        self.tree.column("Coluna Final", width=100)
 
         self.tree.pack(padx=10, pady=(10, 2), fill=tk.BOTH, expand=False)
 
-        # Área de erros
         self.texto_erros = ScrolledText(self.root, height=5, bg="#fff0f0", font=("Courier New", 10))
         self.texto_erros.pack(padx=10, pady=(2, 10), fill=tk.BOTH, expand=False)
         self.texto_erros.insert(tk.END, ">> Erros Léxicos\n")
@@ -89,7 +84,7 @@ class InterfaceLexico:
                 f.write("Tabela de Tokens\n")
                 for item in self.tree.get_children():
                     valores = self.tree.item(item, 'values')
-                    f.write(f"{valores[0]}_{valores[1]} => Linha {valores[2]}\n")
+                    f.write(f"{valores[0]}_{valores[1]} => Linha {valores[2]}, Colunas {valores[3]}-{valores[4]}\n")
             messagebox.showinfo("Exportado", "Tabela exportada com sucesso!")
 
     def analisar_lexico(self):
@@ -97,13 +92,11 @@ class InterfaceLexico:
         analisador = AnalisadorLexicoTexto(codigo)
         analisador.analisar()
 
-        # Preencher a tabela
         for item in self.tree.get_children():
             self.tree.delete(item)
         for token in analisador.tokens:
-            self.tree.insert("", tk.END, values=(token[0], token[1], token[2]))
+            self.tree.insert("", tk.END, values=(token[0], token[1], token[2], token[3], token[4]))
 
-        # Preencher a área de erros
         self.texto_erros.delete("1.0", tk.END)
         self.texto_erros.insert(tk.END, ">> Erros Léxicos\n")
         if not analisador.erros:
@@ -112,7 +105,7 @@ class InterfaceLexico:
             for erro in analisador.erros:
                 self.texto_erros.insert(tk.END, erro + "\n")
 
-# Executar a interface
+# Executar
 if __name__ == "__main__":
     root = tk.Tk()
     app = InterfaceLexico(root)

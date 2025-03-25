@@ -39,13 +39,16 @@ class AnalisadorLexicoTexto:
         return c in "0123456789"
 
     def analisar(self):
+        LIMITE_INTEIRO = 2147483647
+        LIMITE_IDENTIFICADOR = 255
+
         for num_linha, linha in enumerate(self.codigo, start=1):
             i = 0
             tamanho = len(linha)
             while i < tamanho:
                 c = linha[i]
                 prox = linha[i + 1] if i + 1 < tamanho else ""
-                coluna_ini = i + 1  # 1-based
+                coluna_ini = i + 1  # coluna inicial (1-based)
 
                 # Comentário por {}
                 if c == '{':
@@ -72,9 +75,11 @@ class AnalisadorLexicoTexto:
                         num_linha += 1
                         if num_linha - 1 < len(self.codigo):
                             linha = self.codigo[num_linha - 1]
+                            tamanho = len(linha)  # ⚠️ ATUALIZA O TAMANHO DA LINHA
                             i = 0
                         else:
                             break
+
                     if not fechado:
                         self.erros.append(f"Erro Léxico - Comentário não fechado - linha {num_linha}")
                     continue
@@ -95,6 +100,7 @@ class AnalisadorLexicoTexto:
                     while i < tamanho and self.eh_digito(linha[i]):
                         num += linha[i]
                         i += 1
+                    is_real = False
                     if i < tamanho and linha[i] == '.':
                         num += '.'
                         i += 1
@@ -102,11 +108,18 @@ class AnalisadorLexicoTexto:
                             while i < tamanho and self.eh_digito(linha[i]):
                                 num += linha[i]
                                 i += 1
+                            is_real = True
                             self.tokens.append(("tok301", num, num_linha, coluna_ini, coluna_ini + len(num) - 1))
                         else:
                             self.erros.append(f"Erro Léxico - Número real mal formado - linha {num_linha}")
-                    else:
-                        self.tokens.append(("tok300", num, num_linha, coluna_ini, coluna_ini + len(num) - 1))
+                    elif not is_real:
+                        try:
+                            if int(num) > LIMITE_INTEIRO:
+                                self.erros.append(f"Erro Léxico - Overflow de inteiro: {num} - linha {num_linha}")
+                            else:
+                                self.tokens.append(("tok300", num, num_linha, coluna_ini, coluna_ini + len(num) - 1))
+                        except ValueError:
+                            self.erros.append(f"Erro Léxico - Inteiro mal formado: {num} - linha {num_linha}")
                     continue
 
                 elif self.eh_letra(c):
@@ -115,6 +128,9 @@ class AnalisadorLexicoTexto:
                     while i < tamanho and (self.eh_letra(linha[i]) or self.eh_digito(linha[i]) or linha[i] == "_"):
                         ident += linha[i]
                         i += 1
+                    if len(ident) > LIMITE_IDENTIFICADOR:
+                        self.erros.append(f"Erro Léxico - Identificador muito longo - linha {num_linha}")
+                        continue
                     tipo = self.token_reservada(ident) if self.eh_reservada(ident) else "tok500"
                     self.tokens.append((tipo, ident, num_linha, coluna_ini, coluna_ini + len(ident) - 1))
                     continue

@@ -54,6 +54,53 @@ class Interface:
         # Tabela de análise
         self.mostrar_tabela(tabela_frame)
         
+    def mostrar_resultados_tabela(self, passos):
+        # Cria um frame para a tabela
+        tabela_frame = ttk.Frame(self.root)
+        tabela_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Cria a Treeview
+        self.tree = ttk.Treeview(tabela_frame, columns=('Passo', 'Pilha', 'Entrada', 'Ação', 'Resultado'), show='headings')
+        
+        # Configura as colunas
+        for col in ('Passo', 'Pilha', 'Entrada', 'Ação', 'Resultado'):
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=100, anchor=tk.W)
+        
+        # Adiciona os dados
+        for passo in passos[1:]:  # Pula o cabeçalho
+            self.tree.insert('', tk.END, values=(
+                passo['Passo'],
+                passo['Pilha'],
+                passo['Entrada'],
+                passo['Ação'],
+                passo['Resultado']
+            ))
+        
+        # Adiciona barra de rolagem
+        scrollbar = ttk.Scrollbar(tabela_frame, orient=tk.VERTICAL, command=self.tree.yview)
+        self.tree.configure(yscroll=scrollbar.set)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.tree.pack(fill=tk.BOTH, expand=True)
+        
+        # Botão para exportar
+        export_btn = ttk.Button(tabela_frame, text="Exportar para CSV", command=lambda: self.exportar_csv(passos))
+        export_btn.pack(pady=5)
+
+    def exportar_csv(self, passos):
+        from datetime import datetime
+        import csv
+        
+        filename = f"analise_sintatica_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        
+        with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=passos[0].keys())
+            writer.writeheader()
+            writer.writerows(passos[1:])
+        
+        messagebox.showinfo("Exportado", f"Resultados exportados para {filename}")
+
+        
     def analisar(self):
         entrada = self.entrada_text.get("1.0", tk.END).strip()
         self.tokens_text.delete("1.0", tk.END)
@@ -75,10 +122,10 @@ class Interface:
         # Análise sintática
         sucesso, mensagem, passos = self.analisador.analisar(tokens)
         
-        # Mostra passos
+        # Mostra passos 
         for i, passo in enumerate(passos):
             pilha_str = ' '.join(passo['pilha'])
-            entrada_str = ' '.join(passo['entrada'])
+            entrada_str = ' '.join([f"{t[0]}:{t[1]}" for t in passo['entrada']])
             acao_str = passo['acao']
             
             posicao_inicio = self.passos_text.index(tk.END)
@@ -132,6 +179,7 @@ class Interface:
         # Posiciona os elementos
         scrollbar_x.pack(side=tk.BOTTOM, fill=tk.X)
         tree.pack(fill=tk.BOTH, expand=True)
+
 
 if __name__ == "__main__":
     root = tk.Tk()

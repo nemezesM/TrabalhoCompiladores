@@ -1,21 +1,17 @@
 class AnalisadorSintatico:
     def __init__(self):
         # Definição dos símbolos terminais e não-terminais
-        self.terminais = ['id', 'int', 'float', 'char', ',', ';', '$']
-        self.nao_terminais = ['P', 'DECL', 'TIPO', 'LISTA_ID', 'LISTA_ID_']
+        self.terminais = ['TIPO', 'id', ',', ';', '$']
+        self.nao_terminais = ['P', 'DECL', 'LISTA_ID', 'LISTA_ID_']
         
-        # Tabela de análise preditiva
+        # Tabela de análise preditiva corrigida
         self.tabela = {
             'P': {
-                'int': ['TIPO', 'LISTA_ID', ';'],
-                'float': ['TIPO', 'LISTA_ID', ';'],
-                'char': ['TIPO', 'LISTA_ID', ';'],
+                'TIPO': ['DECL'],
                 '$': ['ε']
             },
-            'TIPO': {
-                'int': ['int'],
-                'float': ['float'],
-                'char': ['char']
+            'DECL': {
+                'TIPO': ['TIPO', 'LISTA_ID', ';']
             },
             'LISTA_ID': {
                 'id': ['id', 'LISTA_ID_']
@@ -64,18 +60,22 @@ class AnalisadorSintatico:
         return tokens, None
     
     def analisar(self, tokens):
-        pilha = ['$', 'P']  # Inicializa a pilha com o símbolo inicial e o marcador de fim
+        pilha = ['$', 'P']
         entrada = tokens.copy()
         passos = []
         
-        while pilha[-1] != '$':
+        while len(pilha) > 0 and pilha[-1] != '$':
             topo = pilha[-1]
-            token_atual = entrada[0][0]  # Pegamos apenas o tipo do token
+            if not entrada:
+                token_atual = '$'
+                token_valor = '$'
+            else:
+                token_atual, token_valor = entrada[0]
             
-            # Registra o passo atual para debug
+            # Registrar passo
             passos.append({
                 'pilha': pilha.copy(),
-                'entrada': [t[0] for t in entrada],
+                'entrada': entrada.copy(),
                 'acao': ''
             })
             
@@ -83,10 +83,11 @@ class AnalisadorSintatico:
             if topo in self.terminais:
                 if topo == token_atual:
                     pilha.pop()
-                    entrada.pop(0)
-                    passos[-1]['acao'] = f"Consumir {topo}"
+                    if entrada:
+                        entrada.pop(0)
+                    passos[-1]['acao'] = f"Consumir {token_valor}"
                 else:
-                    erro = f"Erro sintático: esperado '{topo}', encontrado '{token_atual}'"
+                    erro = f"Erro sintático: esperado '{topo}', encontrado '{token_valor}'"
                     passos[-1]['acao'] = f"ERRO: {erro}"
                     return False, erro, passos
             
@@ -96,33 +97,38 @@ class AnalisadorSintatico:
                 passos[-1]['acao'] = "Remover ε"
             
             # Se o topo da pilha é um não-terminal
-            else:
-                if topo in self.tabela and token_atual in self.tabela[topo]:
+            elif topo in self.nao_terminais:
+                if token_atual in self.tabela.get(topo, {}):
                     producao = self.tabela[topo][token_atual]
                     pilha.pop()
                     # Adiciona a produção na ordem inversa
                     for simbolo in reversed(producao):
-                        if simbolo != 'ε':  # Não adiciona epsilon diretamente
+                        if simbolo != 'ε':
                             pilha.append(simbolo)
                     passos[-1]['acao'] = f"Expandir {topo} -> {' '.join(producao)}"
                 else:
-                    erro = f"Erro sintático: não há produção para {topo} com entrada {token_atual}"
+                    esperados = list(self.tabela.get(topo, {}).keys())
+                    erro = f"Erro sintático: não há produção para {topo} com entrada {token_valor}. Esperado: {esperados}"
                     passos[-1]['acao'] = f"ERRO: {erro}"
                     return False, erro, passos
+            else:
+                erro = f"Erro sintático: símbolo desconhecido na pilha '{topo}'"
+                passos[-1]['acao'] = f"ERRO: {erro}"
+                return False, erro, passos
         
-        # Verifica se ainda existe entrada não consumida
-        if entrada[0][0] != '$':
-            erro = f"Erro sintático: entrada não consumida completamente, restante: {entrada}"
+        # Verifica se a análise foi concluída com sucesso
+        if (not entrada or entrada[0][0] == '$') and (not pilha or pilha[-1] == '$'):
+            passos.append({
+                'pilha': ['$'],
+                'entrada': [('$', '$')],
+                'acao': "Análise concluída com sucesso!"
+            })
+            return True, "Análise sintática bem-sucedida!", passos
+        else:
+            erro = "Erro sintático: entrada não foi completamente analisada"
             passos.append({
                 'pilha': pilha.copy(),
-                'entrada': [t[0] for t in entrada],
+                'entrada': [(t[0], t[1]) for t in entrada],
                 'acao': f"ERRO: {erro}"
             })
             return False, erro, passos
-        
-        passos.append({
-            'pilha': pilha.copy(),
-            'entrada': [t[0] for t in entrada],
-            'acao': "Análise concluída com sucesso!"
-        })
-        return True, "Análise sintática bem-sucedida!", passos

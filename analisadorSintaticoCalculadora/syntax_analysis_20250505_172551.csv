@@ -1,0 +1,15 @@
+Step,Stack,Input,Action
+1,$ P,"TIPO:int id:a ,:, id:b ,:, id:c ;:; $:$",Expandir P -> DECL
+2,$ DECL,"TIPO:int id:a ,:, id:b ,:, id:c ;:; $:$",Expandir DECL -> TIPO LISTA_ID ;
+3,$ ; LISTA_ID TIPO,"TIPO:int id:a ,:, id:b ,:, id:c ;:; $:$",Consumir int
+4,$ ; LISTA_ID,"id:a ,:, id:b ,:, id:c ;:; $:$",Expandir LISTA_ID -> id LISTA_ID_
+5,$ ; LISTA_ID_ id,"id:a ,:, id:b ,:, id:c ;:; $:$",Consumir a
+6,$ ; LISTA_ID_,",:, id:b ,:, id:c ;:; $:$","Expandir LISTA_ID_ -> , id LISTA_ID_"
+7,"$ ; LISTA_ID_ id ,",",:, id:b ,:, id:c ;:; $:$","Consumir ,"
+8,$ ; LISTA_ID_ id,"id:b ,:, id:c ;:; $:$",Consumir b
+9,$ ; LISTA_ID_,",:, id:c ;:; $:$","Expandir LISTA_ID_ -> , id LISTA_ID_"
+10,"$ ; LISTA_ID_ id ,",",:, id:c ;:; $:$","Consumir ,"
+11,$ ; LISTA_ID_ id,id:c ;:; $:$,Consumir c
+12,$ ; LISTA_ID_,;:; $:$,Expandir LISTA_ID_ -> ε
+13,$ ;,;:; $:$,Consumir ;
+14,$,$:$,Análise concluída com sucesso!

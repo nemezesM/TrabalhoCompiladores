@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox, filedialog
+from tkinter import ttk, scrolledtext, messagebox, filedialog, Toplevel
 import os
 import csv
 from datetime import datetime
@@ -35,15 +35,12 @@ class ModernSyntaxAnalyzerUI:
         
         # Add example data to the input field
         self.input_text.insert("1.0", "int a, b, c;")
-        
-        # Populate the predictive parsing table on startup
-        self.populate_predictive_table()
     
     def setup_window(self):
         """Configure the main window"""
         self.root.title("Syntax Analyzer - Predictive Descent Parser")
-        self.root.geometry("1000x700")
-        self.root.minsize(800, 600)
+        self.root.geometry("800x600")
+        self.root.minsize(600, 400)
         
         # Make the window responsive
         self.root.columnconfigure(0, weight=1)
@@ -85,40 +82,63 @@ class ModernSyntaxAnalyzerUI:
     def create_widgets(self):
         """Create and arrange all UI widgets"""
         self.create_input_area()
-        self.create_notebook()
         self.create_status_bar()
     
     def create_input_area(self):
         """Create the input area with text field and analyze button"""
         # Input frame with border and title
-        input_frame = ttk.LabelFrame(self.root, text="Input Declaration", padding=(10, 5))
+        input_frame = ttk.LabelFrame(self.root, text="Input Code", padding=(10, 5))
         input_frame.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
         input_frame.columnconfigure(0, weight=1)
+        input_frame.rowconfigure(1, weight=1)
         
         # Input text instructions
         input_label = ttk.Label(
             input_frame, 
-            text="Enter a variable declaration (e.g., 'int a, b, c;'):",
+            text="Enter your code below:",
             style="Header.TLabel"
         )
         input_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
         
+        # Frame for line numbers and text
+        text_frame = ttk.Frame(input_frame)
+        text_frame.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
+        text_frame.columnconfigure(1, weight=1)
+        text_frame.rowconfigure(0, weight=1)
+        
+        # Line numbers
+        self.line_numbers = tk.Text(
+            text_frame,
+            width=4,
+            padx=4,
+            takefocus=0,
+            border=0,
+            background='lightgrey',
+            state='disabled'
+        )
+        self.line_numbers.grid(row=0, column=0, sticky="ns")
+        
         # Input text area with syntax highlighting cues
         self.input_text = scrolledtext.ScrolledText(
-            input_frame, 
-            height=4, 
+            text_frame, 
+            height=20, 
             width=50, 
             font=("Consolas", 10),
-            wrap="word",
+            wrap="none",
             borderwidth=1, 
             relief="solid"
         )
-        self.input_text.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
+        self.input_text.grid(row=0, column=1, sticky="nsew")
         
-        # Analyze button - right aligned
+        # Bind events for line numbers
+        self.input_text.bind("<KeyRelease>", self.update_line_numbers)
+        self.input_text.bind("<MouseWheel>", self.update_line_numbers)
+        
+        # Button frame
         button_frame = ttk.Frame(input_frame)
         button_frame.grid(row=2, column=0, padx=5, pady=5, sticky="e")
         
+        # Analyze button
         self.analyze_button = ttk.Button(
             button_frame, 
             text="Analyze", 
@@ -135,45 +155,87 @@ class ModernSyntaxAnalyzerUI:
         )
         self.clear_button.pack(side="right", padx=5)
     
-    def create_notebook(self):
-        """Create the tabbed interface for different output sections"""
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.grid(row=1, column=0, padx=10, pady=(0, 10), sticky="nsew")
+    def update_line_numbers(self, event=None):
+        """Update the line numbers"""
+        lines = self.input_text.get("1.0", "end-1c").split('\n')
+        line_numbers_text = "\n".join(str(i+1) for i in range(len(lines)))
+        
+        self.line_numbers.config(state='normal')
+        self.line_numbers.delete("1.0", "end")
+        self.line_numbers.insert("1.0", line_numbers_text)
+        self.line_numbers.config(state='disabled')
+        
+        # Sync scrolling between text and line numbers
+        self.line_numbers.yview_moveto(self.input_text.yview()[0])
+    
+    def create_status_bar(self):
+        """Create the status bar for result feedback"""
+        status_frame = ttk.Frame(self.root, relief="sunken", padding=(5, 2))
+        status_frame.grid(row=2, column=0, sticky="ew")
+        
+        ttk.Label(status_frame, text="Status: ").pack(side="left")
+        self.status_label = ttk.Label(
+            status_frame, 
+            textvariable=self.status_var,
+            style=self.status_style.get()
+        )
+        self.status_label.pack(side="left", fill="x", expand=True)
+    
+    def setup_bindings(self):
+        """Set up keyboard shortcuts and event bindings"""
+        self.root.bind("<F5>", lambda e: self.run_analysis())
+        self.root.bind("<Control-n>", lambda e: self.clear_all())
+        self.root.bind("<Control-e>", lambda e: self.export_results())
+    
+    def create_results_window(self):
+        """Create a new window to display analysis results"""
+        results_window = Toplevel(self.root)
+        results_window.title("Analysis Results")
+        results_window.geometry("1000x700")
+        
+        # Create notebook for tabs
+        notebook = ttk.Notebook(results_window)
+        notebook.pack(expand=True, fill="both", padx=10, pady=10)
         
         # Create tabs
-        self.tokens_tab = ttk.Frame(self.notebook, padding=10)
-        self.analysis_tab = ttk.Frame(self.notebook, padding=10)
-        self.table_tab = ttk.Frame(self.notebook, padding=10)
+        tokens_tab = ttk.Frame(notebook, padding=10)
+        analysis_tab = ttk.Frame(notebook, padding=10)
+        table_tab = ttk.Frame(notebook, padding=10)
         
         # Add tabs to notebook
-        self.notebook.add(self.tokens_tab, text="Tokens")
-        self.notebook.add(self.analysis_tab, text="Analysis Steps")
-        self.notebook.add(self.table_tab, text="Predictive Table")
+        notebook.add(tokens_tab, text="Tokens")
+        notebook.add(analysis_tab, text="Analysis Steps")
+        notebook.add(table_tab, text="Predictive Table")
         
-        # Configure tab content areas
-        self.create_tokens_tab()
-        self.create_analysis_tab()
-        self.create_table_tab()
+        # Configure tab content
+        self.create_tokens_tab(tokens_tab)
+        self.create_analysis_tab(analysis_tab)
+        self.create_table_tab(table_tab)
+        
+        # Populate the predictive table
+        self.populate_predictive_table()
+        
+        return results_window
     
-    def create_tokens_tab(self):
+    def create_tokens_tab(self, parent):
         """Setup the tokens display tab"""
-        self.tokens_tab.columnconfigure(0, weight=1)
-        self.tokens_tab.rowconfigure(1, weight=1)
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(1, weight=1)
         
         # Tokens header
         ttk.Label(
-            self.tokens_tab, 
+            parent, 
             text="Lexical Analysis Results", 
             style="Title.TLabel"
         ).grid(row=0, column=0, padx=5, pady=5, sticky="w")
         
         # Tokens display with headers
-        token_frame = ttk.Frame(self.tokens_tab)
+        token_frame = ttk.Frame(parent)
         token_frame.grid(row=1, column=0, sticky="nsew")
         token_frame.columnconfigure(0, weight=1)
         token_frame.rowconfigure(0, weight=1)
         
-        # Use Treeview for token display instead of text field
+        # Use Treeview for token display
         columns = ("type", "value")
         self.tokens_tree = ttk.Treeview(
             token_frame, 
@@ -196,14 +258,14 @@ class ModernSyntaxAnalyzerUI:
         self.tokens_tree.grid(row=0, column=0, sticky="nsew")
         tokens_scroll_y.grid(row=0, column=1, sticky="ns")
     
-    def create_analysis_tab(self):
+    def create_analysis_tab(self, parent):
         """Setup the analysis steps display tab"""
-        self.analysis_tab.columnconfigure(0, weight=1)
-        self.analysis_tab.rowconfigure(1, weight=1)
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(1, weight=1)
         
         # Analysis header
         ttk.Label(
-            self.analysis_tab, 
+            parent, 
             text="Syntax Analysis Steps", 
             style="Title.TLabel"
         ).grid(row=0, column=0, padx=5, pady=5, sticky="w")
@@ -211,7 +273,7 @@ class ModernSyntaxAnalyzerUI:
         # Analysis steps in a treeview with columns
         columns = ("step", "stack", "input", "action")
         self.analysis_tree = ttk.Treeview(
-            self.analysis_tab, 
+            parent, 
             columns=columns, 
             show="headings", 
             selectmode="browse"
@@ -230,12 +292,12 @@ class ModernSyntaxAnalyzerUI:
         
         # Add scrollbars
         analysis_scroll_y = ttk.Scrollbar(
-            self.analysis_tab, 
+            parent, 
             orient="vertical", 
             command=self.analysis_tree.yview
         )
         analysis_scroll_x = ttk.Scrollbar(
-            self.analysis_tab, 
+            parent, 
             orient="horizontal", 
             command=self.analysis_tree.xview
         )
@@ -250,20 +312,20 @@ class ModernSyntaxAnalyzerUI:
         analysis_scroll_y.grid(row=1, column=1, sticky="ns")
         analysis_scroll_x.grid(row=2, column=0, sticky="ew")
     
-    def create_table_tab(self):
+    def create_table_tab(self, parent):
         """Setup the predictive parsing table tab"""
-        self.table_tab.columnconfigure(0, weight=1)
-        self.table_tab.rowconfigure(1, weight=1)
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(1, weight=1)
         
         # Table header
         ttk.Label(
-            self.table_tab, 
+            parent, 
             text="LL(1) Predictive Parsing Table", 
             style="Title.TLabel"
         ).grid(row=0, column=0, padx=5, pady=5, sticky="w")
         
         # Create a frame for the table with scrollbars
-        table_frame = ttk.Frame(self.table_tab)
+        table_frame = ttk.Frame(parent)
         table_frame.grid(row=1, column=0, sticky="nsew")
         table_frame.columnconfigure(0, weight=1)
         table_frame.rowconfigure(0, weight=1)
@@ -292,36 +354,6 @@ class ModernSyntaxAnalyzerUI:
         self.predictive_table.grid(row=0, column=0, sticky="nsew")
         table_scroll_y.grid(row=0, column=1, sticky="ns")
         table_scroll_x.grid(row=1, column=0, sticky="ew")
-    
-    def create_status_bar(self):
-        """Create the status bar for result feedback"""
-        status_frame = ttk.Frame(self.root, relief="sunken", padding=(5, 2))
-        status_frame.grid(row=2, column=0, sticky="ew")
-        
-        ttk.Label(status_frame, text="Result: ").pack(side="left")
-        self.status_label = ttk.Label(
-            status_frame, 
-            textvariable=self.status_var,
-            style=self.status_style.get()
-        )
-        self.status_label.pack(side="left", fill="x", expand=True)
-    
-    def setup_bindings(self):
-        """Set up keyboard shortcuts and event bindings"""
-        self.root.bind("<F5>", lambda e: self.run_analysis())
-        self.root.bind("<Control-n>", lambda e: self.clear_all())
-        self.root.bind("<Control-e>", lambda e: self.export_results())
-        
-        # When tab changes, resize columns to fit content
-        self.notebook.bind("<<NotebookTabChanged>>", self.on_tab_changed)
-    
-    def on_tab_changed(self, event=None):
-        """Handle tab change events"""
-        current_tab = self.notebook.select()
-        if current_tab == self.table_tab:
-            # Resize columns for better visibility when table tab is selected
-            for col in self.predictive_table["columns"]:
-                self.predictive_table.column(col, width=100)  # Reset to default width
     
     def populate_predictive_table(self):
         """Populate the predictive parsing table with grammar rules"""
@@ -354,13 +386,19 @@ class ModernSyntaxAnalyzerUI:
     
     def run_analysis(self):
         """Execute the syntax analysis and update the UI"""
+        # Create results window
+        results_window = self.create_results_window()
+        
         # Clear previous results
-        self.clear_results()
+        for item in self.tokens_tree.get_children():
+            self.tokens_tree.delete(item)
+        for item in self.analysis_tree.get_children():
+            self.analysis_tree.delete(item)
         
         # Get input text
         entrada = self.input_text.get("1.0", tk.END).strip()
         if not entrada:
-            self.set_status("Please enter a variable declaration to analyze", "error")
+            self.set_status("Please enter code to analyze", "error")
             return
         
         # Lexical analysis
@@ -396,8 +434,8 @@ class ModernSyntaxAnalyzerUI:
         # Update status
         self.set_status(mensagem, "success" if sucesso else "error")
         
-        # Switch to tokens tab to show first results
-        self.notebook.select(0)
+        # Bring results window to front
+        results_window.lift()
     
     def set_status(self, message, style="status"):
         """Update the status bar with message and appropriate style"""
@@ -408,27 +446,17 @@ class ModernSyntaxAnalyzerUI:
     def clear_input(self):
         """Clear only the input field"""
         self.input_text.delete("1.0", tk.END)
+        self.update_line_numbers()
         self.set_status("Ready", "status")
-    
-    def clear_results(self):
-        """Clear all result displays"""
-        # Clear tokens
-        for item in self.tokens_tree.get_children():
-            self.tokens_tree.delete(item)
-        
-        # Clear analysis steps
-        for item in self.analysis_tree.get_children():
-            self.analysis_tree.delete(item)
     
     def clear_all(self):
         """Clear all inputs and results"""
         self.clear_input()
-        self.clear_results()
     
     def export_results(self):
         """Export analysis results to CSV file"""
         # Check if there are results to export
-        if not self.analysis_tree.get_children():
+        if not hasattr(self, 'analysis_tree') or not self.analysis_tree.get_children():
             messagebox.showinfo("Export", "No analysis results to export.")
             return
         
@@ -437,7 +465,7 @@ class ModernSyntaxAnalyzerUI:
             defaultextension=".csv",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
             initialfile=f"syntax_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            initialdir=os.path.abspath("./exports")  # ou qualquer outro caminho desejado
+            initialdir=os.path.abspath("./exports")
         )
         
         if not filename:
